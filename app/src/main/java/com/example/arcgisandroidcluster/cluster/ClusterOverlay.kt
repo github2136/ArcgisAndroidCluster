@@ -98,15 +98,15 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         clusterOverlay.isVisible = visible
     }
 
-    private var xMin = ""
-    private var xMax = ""
-    private var yMin = ""
-    private var yMax = ""
+    private var xMin = 0.0
+    private var xMax = 0.0
+    private var yMin = 0.0
+    private var yMax = 0.0
     override fun navigationChanged(p0: NavigationChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+        val xMinTemp = mapView.visibleArea.extent.xMin
+        val xMaxTemp = mapView.visibleArea.extent.xMax
+        val yMinTemp = mapView.visibleArea.extent.yMin
+        val yMaxTemp = mapView.visibleArea.extent.yMax
         if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
             xMin = xMinTemp
             xMax = xMaxTemp
@@ -119,10 +119,10 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     override fun viewpointChanged(p0: ViewpointChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+        val xMinTemp = mapView.visibleArea.extent.xMin
+        val xMaxTemp = mapView.visibleArea.extent.xMax
+        val yMinTemp = mapView.visibleArea.extent.yMin
+        val yMaxTemp = mapView.visibleArea.extent.yMax
         if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
             xMin = xMinTemp
             xMax = xMaxTemp
@@ -202,7 +202,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     private fun calculateSingleCluster(clusterItem: ClusterItem<T>) {
         val visibleBounds: Polygon? = mapView.visibleArea
         visibleBounds?.let {
-            val latlng: GPSUtil.UtilLatLng = clusterItem.latLng
+            val latlng: UtilLatLng = clusterItem.latLng
             if (!contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
                 return
             }
@@ -232,10 +232,10 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
      * @param latLng
      * @return
      */
-    private fun getCluster(latLng: GPSUtil.UtilLatLng, clusters: List<Cluster<T>>): Cluster<T>? {
+    private fun getCluster(latLng: UtilLatLng, clusters: List<Cluster<T>>): Cluster<T>? {
         for (cluster in clusters) {
-            val clusterCenterPoint: GPSUtil.UtilLatLng = cluster.latlng
-            val distance: Float = AMapUtils.calculateLineDistance(latLng, clusterCenterPoint)
+            val clusterCenterPoint: UtilLatLng = cluster.latlng
+            val distance: Float = UtilLatLng.calculateLineDistance(latLng, clusterCenterPoint)
             if (distance < clusterDistance) {
                 return cluster
             }
@@ -260,7 +260,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
             if (mIsCanceled) {
                 return
             }
-            val latlng: GPSUtil.UtilLatLng = clusterItem.latLng
+            val latlng: UtilLatLng = clusterItem.latLng
 
             if (contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
                 var cluster: Cluster<T>? = getCluster(latlng, clusters)

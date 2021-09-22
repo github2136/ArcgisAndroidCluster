@@ -1,9 +1,11 @@
 package com.example.arcgisandroidcluster
 
+import android.content.res.Resources
 import android.graphics.*
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.text.TextPaint
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -18,10 +20,7 @@ import com.esri.arcgisruntime.mapping.Viewpoint
 import com.esri.arcgisruntime.mapping.view.*
 import com.esri.arcgisruntime.symbology.PictureMarkerSymbol
 import com.esri.arcgisruntime.symbology.Symbol
-import com.example.arcgisandroidcluster.cluster.Cluster
-import com.example.arcgisandroidcluster.cluster.ClusterItem
-import com.example.arcgisandroidcluster.cluster.ClusterOverlay
-import com.example.arcgisandroidcluster.cluster.ClusterRender
+import com.example.arcgisandroidcluster.cluster.*
 import com.google.gson.reflect.TypeToken
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -47,41 +46,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private val clusterOverlay by lazy {
-        ClusterOverlay<D>(this, mapView, 45f.dp2px, D::class.java.name).apply {
-                clusterRender = object : ClusterRender<D> {
-                    override fun getSymbol(clusterItem: MutableList<ClusterItem<D>>): Symbol {
-                        var num = clusterItem.size
-                        num = if (num > 99) 99 else num
-                        val resource = if (num > 1) {
-                            val text = num.toString()
-                            val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
-                            val b = Bitmap.createBitmap(drawable.intrinsicWidth + circleWidth.toInt(), drawable.intrinsicHeight + circleWidth.toInt(), Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(b)
-                            drawable.setBounds(0, circleWidth.toInt(), canvas.width - circleWidth.toInt(), canvas.height)
-                            drawable.draw(canvas)
-                            val rect = Rect()
-                            textFillPaint.getTextBounds(text, 0, text.length, rect)
-                            val w = textFillPaint.measureText(text)
-                            val circleX = canvas.width - circleWidth
-                            val circleY = circleWidth
-                            canvas.drawCircle(circleX, circleY, circleWidth, circlePaint)
-                            canvas.drawText(num.toString(), circleX - w / 2, circleY + rect.height() / 2, textFillPaint)
-                            BitmapDrawable(resources, b)
-                        } else {
-                            val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
-                            val b = Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(b)
-                            drawable.setBounds(0, 0, canvas.width, canvas.height)
-                            drawable.draw(canvas)
-                            BitmapDrawable(resources, b)
-                        }
-                        return PictureMarkerSymbol(resource as BitmapDrawable)
+        ClusterOverlay<String>(this, mapView, 45f.dp2px, String::class.java.name).apply {
+            clusterRender = object : ClusterRender<String> {
+                override fun getSymbol(clusterItem: MutableList<ClusterItem<String>>): Symbol {
+                    var num = clusterItem.size
+                    num = if (num > 99) 99 else num
+                    val resource = if (num > 1) {
+                        val text = num.toString()
+                        val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
+                        val b = Bitmap.createBitmap(
+                            drawable.intrinsicWidth + circleWidth.toInt(),
+                            drawable.intrinsicHeight + circleWidth.toInt(),
+                            Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = Canvas(b)
+                        drawable.setBounds(
+                            0,
+                            circleWidth.toInt(),
+                            canvas.width - circleWidth.toInt(),
+                            canvas.height
+                        )
+                        drawable.draw(canvas)
+                        val rect = Rect()
+                        textFillPaint.getTextBounds(text, 0, text.length, rect)
+                        val w = textFillPaint.measureText(text)
+                        val circleX = canvas.width - circleWidth
+                        val circleY = circleWidth
+                        canvas.drawCircle(circleX, circleY, circleWidth, circlePaint)
+                        canvas.drawText(
+                            num.toString(),
+                            circleX - w / 2,
+                            circleY + rect.height() / 2,
+                            textFillPaint
+                        )
+                        BitmapDrawable(resources, b)
+                    } else {
+                        val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
+                        val b = Bitmap.createBitmap(
+                            drawable.intrinsicWidth,
+                            drawable.intrinsicHeight,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = Canvas(b)
+                        drawable.setBounds(0, 0, canvas.width, canvas.height)
+                        drawable.draw(canvas)
+                        BitmapDrawable(resources, b)
                     }
-
-                    override fun cacheOne() = true
+                    return PictureMarkerSymbol(resource as BitmapDrawable)
                 }
+
+                override fun cacheOne() = true
             }
         }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,12 +152,7 @@ class MainActivity : AppCompatActivity() {
                 return super.onSingleTapUp(motionEvent)
             }
         }
-        mapView.addNavigationChangedListener { event ->
-            onNavigationChanged(event)
-        }
-        mapView.addMapScaleChangedListener { event ->
-            onMapScaleChanged(event)
-        }
+
         val baseLayout = mutableListOf<Layer>()
         baseLayout.add(
             CacheTianDiTuTiledLayer.get(
@@ -168,9 +180,8 @@ class MainActivity : AppCompatActivity() {
         val lat = 39.902909
         val lng = 116.413907
         for (i in 0..10000) {
-            val point =
-                GPSUtil.UtilLatLng(lat + Random.nextDouble(0.01), lng + Random.nextDouble(0.01))
-            val d = D(i, i.toString())
+            val point = UtilLatLng(lat + Random.nextDouble(0.01), lng + Random.nextDouble(0.01))
+            val d = i.toString()
             clusterOverlay.addClusterItem(ClusterItem(point, d))
         }
     }
@@ -208,18 +219,16 @@ class MainActivity : AppCompatActivity() {
                     //聚合点
                     val type = marker.attributes["TYPE"] as String
                     when (type) {
-                        D::class.java.name -> {
-                            val obj = mJsonUtil.getObjectByStr<Cluster<D>>(
+                        String::class.java.name -> {
+                            val obj = mJsonUtil.getObjectByStr<Cluster<String>>(
                                 str,
-                                object : TypeToken<Cluster<D>>() {}.type
+                                object : TypeToken<Cluster<String>>() {}.type
                             )
                             obj?.let {
                                 if (it.clusterItems.size > 1) {
-                                    val ids = mutableListOf<Int>()
                                     val names = mutableListOf<String>()
                                     for (clusterItem in it.clusterItems) {
-                                        ids.add(clusterItem.obj.id)
-                                        names.add(clusterItem.obj.str)
+                                        names.add(clusterItem.obj)
                                     }
                                     AlertDialog.Builder(this)
                                         .setTitle("请选择")
@@ -231,7 +240,7 @@ class MainActivity : AppCompatActivity() {
                                         .show()
                                 } else {
                                     val item = it.clusterItems.first().obj
-                                    Toast.makeText(this, item.str, Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this, item, Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
@@ -240,27 +249,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
+    /**
+     * dp2px
+     */
+    val Float.dp2px get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, Resources.getSystem().displayMetrics).toInt()
 
     /**
-     * 屏幕移动
+     * sp2px
      */
-    open fun onNavigationChanged(event: NavigationChangedEvent?) {}
-
-    /**
-     * 镜头移动
-     */
-    open fun viewpointChanged(event: ViewpointChangedEvent?) {}
-
-    /**
-     * 位置移动
-     */
-    open fun onLocationChanged(event: LocationDisplay.LocationChangedEvent?) {}
-
-    /**
-     * 地图缩放
-     */
-    open fun onMapScaleChanged(event: MapScaleChangedEvent?) {}
-
-
+    val Float.sp2px get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, this, Resources.getSystem().displayMetrics).toInt()
 }
