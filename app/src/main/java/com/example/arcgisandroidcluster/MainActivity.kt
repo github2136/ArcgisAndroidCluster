@@ -17,18 +17,18 @@ import com.esri.arcgisruntime.layers.Layer
 import com.esri.arcgisruntime.mapping.ArcGISMap
 import com.esri.arcgisruntime.mapping.Basemap
 import com.esri.arcgisruntime.mapping.Viewpoint
-import com.esri.arcgisruntime.mapping.view.*
+import com.esri.arcgisruntime.mapping.view.DefaultMapViewOnTouchListener
+import com.esri.arcgisruntime.mapping.view.Graphic
+import com.esri.arcgisruntime.mapping.view.MapView
 import com.esri.arcgisruntime.symbology.PictureMarkerSymbol
 import com.esri.arcgisruntime.symbology.Symbol
 import com.example.arcgisandroidcluster.cluster.*
-import com.google.gson.reflect.TypeToken
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
     val mapView by lazy { findViewById<MapView>(R.id.mvMap) }
-
-    private val mJsonUtil by lazy { JsonUtil.instance }
+    val markerMap = mutableMapOf<String, Any>() //标记点添加的对象
 
     //自定义样式
     val textFillPaint by lazy {
@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private val clusterOverlay by lazy {
-        ClusterOverlay<String>(this, mapView, 45f.dp2px, String::class.java.name).apply {
+        ClusterOverlay<String>(this, mapView, 45f.dp2px, markerMap).apply {
             clusterRender = object : ClusterRender<String> {
                 override fun getSymbol(clusterItem: MutableList<ClusterItem<String>>): Symbol {
                     var num = clusterItem.size
@@ -54,18 +54,9 @@ class MainActivity : AppCompatActivity() {
                     val resource = if (num > 1) {
                         val text = num.toString()
                         val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
-                        val b = Bitmap.createBitmap(
-                            drawable.intrinsicWidth + circleWidth.toInt(),
-                            drawable.intrinsicHeight + circleWidth.toInt(),
-                            Bitmap.Config.ARGB_8888
-                        )
+                        val b = Bitmap.createBitmap(drawable.intrinsicWidth + circleWidth.toInt(), drawable.intrinsicHeight + circleWidth.toInt(), Bitmap.Config.ARGB_8888)
                         val canvas = Canvas(b)
-                        drawable.setBounds(
-                            0,
-                            circleWidth.toInt(),
-                            canvas.width - circleWidth.toInt(),
-                            canvas.height
-                        )
+                        drawable.setBounds(0, circleWidth.toInt(), canvas.width - circleWidth.toInt(), canvas.height)
                         drawable.draw(canvas)
                         val rect = Rect()
                         textFillPaint.getTextBounds(text, 0, text.length, rect)
@@ -73,20 +64,11 @@ class MainActivity : AppCompatActivity() {
                         val circleX = canvas.width - circleWidth
                         val circleY = circleWidth
                         canvas.drawCircle(circleX, circleY, circleWidth, circlePaint)
-                        canvas.drawText(
-                            num.toString(),
-                            circleX - w / 2,
-                            circleY + rect.height() / 2,
-                            textFillPaint
-                        )
+                        canvas.drawText(num.toString(), circleX - w / 2, circleY + rect.height() / 2, textFillPaint)
                         BitmapDrawable(resources, b)
                     } else {
                         val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
-                        val b = Bitmap.createBitmap(
-                            drawable.intrinsicWidth,
-                            drawable.intrinsicHeight,
-                            Bitmap.Config.ARGB_8888
-                        )
+                        val b = Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
                         val canvas = Canvas(b)
                         drawable.setBounds(0, 0, canvas.width, canvas.height)
                         drawable.draw(canvas)
@@ -121,17 +103,12 @@ class MainActivity : AppCompatActivity() {
             override fun onSingleTapUp(motionEvent: MotionEvent?): Boolean {
                 if (motionEvent != null) {
                     //获取点击的坐标
-                    val screenPoint = android.graphics.Point(
-                        motionEvent.x.roundToInt(),
-                        motionEvent.y.roundToInt()
-                    )
+                    val screenPoint = android.graphics.Point(motionEvent.x.roundToInt(), motionEvent.y.roundToInt())
                     // 点击坐标点转换经纬度
                     val mapPoint = mapView.screenToLocation(screenPoint)
                     // 经纬度转WGS84坐标
-                    val wgs84Point =
-                        GeometryEngine.project(mapPoint, SpatialReferences.getWgs84()) as Point
-                    val listenable =
-                        mapView.identifyGraphicsOverlaysAsync(screenPoint, 8.0, false, 1)
+                    val wgs84Point = GeometryEngine.project(mapPoint, SpatialReferences.getWgs84()) as Point
+                    val listenable = mapView.identifyGraphicsOverlaysAsync(screenPoint, 8.0, false, 1)
                     var clickMarker = false
                     listenable.addDoneListener {
                         val identifyLayerResults = listenable.get()
@@ -140,7 +117,8 @@ class MainActivity : AppCompatActivity() {
                             //循环所点击要素
                             for (geoElement in identifyLayerResult.graphics) {
                                 clickMarker = true
-                                onMarkerClick(geoElement)
+                                val obj = geoElement.attributes["KEY"]?.let { markerMap[it] }
+                                onMarkerClick(geoElement, obj)
                                 break@loop
                             }
                         }
@@ -154,18 +132,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val baseLayout = mutableListOf<Layer>()
-        baseLayout.add(
-            CacheTianDiTuTiledLayer.get(
-                this,
-                CacheTianDiTuTiledLayer.LayerType.TIANDITU_VECTOR_2000
-            )
-        )
-        baseLayout.add(
-            CacheTianDiTuTiledLayer.get(
-                this,
-                CacheTianDiTuTiledLayer.LayerType.TIANDITU_VECTOR_2000_LABLE
-            )
-        )
+        baseLayout.add(CacheTianDiTuTiledLayer.get(this, CacheTianDiTuTiledLayer.LayerType.TIANDITU_VECTOR_2000))
+        baseLayout.add(CacheTianDiTuTiledLayer.get(this, CacheTianDiTuTiledLayer.LayerType.TIANDITU_VECTOR_2000_LABLE))
         mapView.map = ArcGISMap(Basemap().apply { this.baseLayers.addAll(baseLayout) })
 
         // 设置放大最大比例
@@ -209,39 +177,27 @@ class MainActivity : AppCompatActivity() {
     /**
      * 标记点击
      */
-    fun onMarkerClick(marker: Graphic) {
-        if (marker.attributes.containsKey("NAME")) {
-            val name = marker.attributes["NAME"] as String
-            val str = marker.attributes["OBJ"] as String
-            when (name) {
-
-                Cluster::class.java.name -> {
-                    //聚合点
-                    val type = marker.attributes["TYPE"] as String
-                    when (type) {
-                        String::class.java.name -> {
-                            val obj = mJsonUtil.getObjectByStr<Cluster<String>>(
-                                str,
-                                object : TypeToken<Cluster<String>>() {}.type
-                            )
-                            obj?.let {
-                                if (it.clusterItems.size > 1) {
-                                    val names = mutableListOf<String>()
-                                    for (clusterItem in it.clusterItems) {
-                                        names.add(clusterItem.obj)
-                                    }
-                                    AlertDialog.Builder(this)
+    fun onMarkerClick(marker: Graphic, obj: Any?) {
+        when (obj) {
+            is Cluster<*> -> {
+                when (obj.clusterItems.first().obj) {
+                    is String -> {
+                        with(obj.clusterItems as MutableList<ClusterItem<String>>) {
+                            if (obj.clusterItems.size > 1) {
+                                val names = mutableListOf<String>()
+                                for (clusterItem in obj.clusterItems) {
+                                    names.add(clusterItem.obj)
+                                }
+                                AlertDialog.Builder(this@MainActivity)
                                         .setTitle("请选择")
                                         .setItems(names.toTypedArray()) { _, which ->
-                                            Toast.makeText(this, names[which], Toast.LENGTH_SHORT)
-                                                .show()
+                                            Toast.makeText(this@MainActivity, names[which], Toast.LENGTH_SHORT).show()
                                         }
                                         .setNegativeButton("关闭", null)
                                         .show()
-                                } else {
-                                    val item = it.clusterItems.first().obj
-                                    Toast.makeText(this, item, Toast.LENGTH_SHORT).show()
-                                }
+                            } else {
+                                val item = obj.clusterItems.first().obj
+                                Toast.makeText(this@MainActivity, item, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -249,6 +205,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     /**
      * dp2px
      */

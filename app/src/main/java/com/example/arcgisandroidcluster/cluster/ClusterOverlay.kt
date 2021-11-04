@@ -10,27 +10,32 @@ import android.util.LruCache
 import com.esri.arcgisruntime.geometry.*
 import com.esri.arcgisruntime.mapping.view.*
 import com.esri.arcgisruntime.symbology.*
-import com.example.arcgisandroidcluster.*
+import com.esri.arcgisruntime.util.ListChangedEvent
+import com.esri.arcgisruntime.util.ListChangedListener
+import com.example.arcgisandroidcluster.R
+import java.util.*
+import kotlin.collections.ArrayList
+
 
 /**
+ * Created by YB on 2021/9/7
  * 点聚合
  * @param clusterSize 聚合范围的大小（指点像素单位距离内的点会聚合到一个点显示）
  */
-class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val type: String) : NavigationChangedListener, ViewpointChangedListener {
-    private val mJsonUtil by lazy { JsonUtil.instance }
+class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener, ListChangedListener<Graphic> {
     private val markerHandlerThread = HandlerThread("addMarker")
     private val signClusterThread = HandlerThread("calculateCluster")
     private var markerHandler: Handler
     private var signClusterHandler: Handler
     private var lruCache: LruCache<Int, Symbol> = LruCache(80)
-    private val clusterItems = mutableListOf<ClusterItem<T>>()//所有聚合点
-    private val clusters = mutableListOf<Cluster<T>>()//已经聚合的点
+    private val clusterItems = mutableListOf<ClusterItem<T>>() //所有聚合点
+    private val clusters = mutableListOf<Cluster<T>>() //已经聚合的点
     private val clusterOverlay = GraphicsOverlay()
     private var mIsCanceled = false
     private var PXInMeters = 0.0
     private val graphicsPoint: android.graphics.Point = android.graphics.Point()
     private var clusterDistance = 0.0
-    var clusterRender: ClusterRender<T>? = null//聚合点样式
+    var clusterRender: ClusterRender<T>? = null //聚合点样式
 
     init {
         //默认最多会缓存80张图片作为聚合显示元素图片,根据自己显示需求和app使用内存情况,可以修改数量
@@ -39,6 +44,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         mapView.graphicsOverlays.add(clusterOverlay)
         mapView.addNavigationChangedListener(this)
         mapView.addViewpointChangedListener(this)
+        clusterOverlay.graphics.addListChangedListener(this)
         markerHandlerThread.start()
         signClusterThread.start()
         markerHandler = MarkerHandler(markerHandlerThread.looper)
@@ -70,7 +76,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
             GeodeticCurveType.GEODESIC
         )
 
-        val scale = maxLengthGeodetic / maxScaleBarLengthPixels//每个像素所占米数
+        val scale = maxLengthGeodetic / maxScaleBarLengthPixels //每个像素所占米数
         return scale
     }
 
@@ -98,15 +104,15 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         clusterOverlay.isVisible = visible
     }
 
-    private var xMin = 0.0
-    private var xMax = 0.0
-    private var yMin = 0.0
-    private var yMax = 0.0
+    private var xMin = ""
+    private var xMax = ""
+    private var yMin = ""
+    private var yMax = ""
     override fun navigationChanged(p0: NavigationChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin
-        val xMaxTemp = mapView.visibleArea.extent.xMax
-        val yMinTemp = mapView.visibleArea.extent.yMin
-        val yMaxTemp = mapView.visibleArea.extent.yMax
+        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
         if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
             xMin = xMinTemp
             xMax = xMaxTemp
@@ -119,10 +125,10 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     override fun viewpointChanged(p0: ViewpointChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin
-        val xMaxTemp = mapView.visibleArea.extent.xMax
-        val yMinTemp = mapView.visibleArea.extent.yMin
-        val yMaxTemp = mapView.visibleArea.extent.yMax
+        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
         if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
             xMin = xMinTemp
             xMax = xMaxTemp
@@ -156,9 +162,9 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
      */
     private fun addSingleClusterToMap(cluster: Cluster<T>) {
         val graphic = Graphic(Point(cluster.latlng.lng, cluster.latlng.lat, SpatialReferences.getWgs84()), getSymbol(cluster.clusterItems))
-        graphic.attributes["NAME"] = cluster.javaClass.name
-        graphic.attributes["OBJ"] = mJsonUtil.getGson().toJson(cluster)
-        graphic.attributes["TYPE"] = type
+        val key = UUID.randomUUID().toString()
+        graphic.attributes["KEY"] = key
+        markerMap[key] = cluster
         cluster.marker = graphic
         clusterOverlay.graphics.add(graphic)
     }
@@ -329,6 +335,17 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         return point.x > extent.xMin && point.x < extent.xMax && point.y > extent.yMin && point.y < extent.yMax
     }
 
+
+    override fun listChanged(event: ListChangedEvent<Graphic>) {
+        if (event.action == ListChangedEvent.Action.REMOVED) {
+            event.items.forEach { g ->
+                g.attributes["KEY"]?.apply {
+                    markerMap.remove(this)
+                }
+            }
+        }
+    }
+
     companion object {
         val ADD_CLUSTER_LIST = 0
         val ADD_SINGLE_CLUSTER = 1
@@ -337,5 +354,4 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         val CALCULATE_CLUSTER = 0
         val CALCULATE_SINGLE_CLUSTER = 1
     }
-
 }

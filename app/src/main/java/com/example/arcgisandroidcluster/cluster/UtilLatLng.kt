@@ -2,6 +2,9 @@ package com.example.arcgisandroidcluster.cluster
 
 data class UtilLatLng(val lat: Double, val lng: Double) {
     companion object {
+        /**
+         * 两点距离计算
+         */
         fun calculateLineDistance(var0: UtilLatLng, var1: UtilLatLng): Float {
             try {
                 var var2: Double = var0.lng
@@ -38,4 +41,11 @@ data class UtilLatLng(val lat: Double, val lng: Double) {
             }
         }
     }
+}
+
+/**
+ * 坐标格式化限制长度
+ */
+fun Double.latlngFormat(): String {
+    return String.format("%.6f", this)
 }

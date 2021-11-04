@@ -3,6 +3,7 @@ package com.example.arcgisandroidcluster.cluster
 import com.esri.arcgisruntime.symbology.Symbol
 
 /**
+ * Created by YB on 2021/9/7
  * 聚合点样式
  */
 interface ClusterRender<T> {
