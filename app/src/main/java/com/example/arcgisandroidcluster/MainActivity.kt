@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                         drawable.draw(canvas)
                         BitmapDrawable(resources, b)
                     }
-                    return PictureMarkerSymbol(resource as BitmapDrawable)
+                    return PictureMarkerSymbol(resource)
                 }
 
                 override fun cacheOne() = true
