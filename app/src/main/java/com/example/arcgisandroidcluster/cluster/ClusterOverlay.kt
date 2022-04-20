@@ -42,13 +42,13 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         PXInMeters = getScale()
         clusterDistance = PXInMeters * clusterSize
         mapView.graphicsOverlays.add(clusterOverlay)
-        mapView.addNavigationChangedListener(this)
-        mapView.addViewpointChangedListener(this)
-        clusterOverlay.graphics.addListChangedListener(this)
         markerHandlerThread.start()
         signClusterThread.start()
         markerHandler = MarkerHandler(markerHandlerThread.looper)
         signClusterHandler = SignClusterHandler(signClusterThread.looper)
+        mapView.addNavigationChangedListener(this)
+        mapView.addViewpointChangedListener(this)
+        clusterOverlay.graphics.addListChangedListener(this)
         assignClusters()
     }
 
