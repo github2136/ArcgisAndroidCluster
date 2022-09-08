@@ -141,6 +141,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     private fun assignClusters() {
+        mIsCanceled = true
         signClusterHandler.removeMessages(CALCULATE_CLUSTER)
         signClusterHandler.sendEmptyMessage(CALCULATE_CLUSTER)
     }
