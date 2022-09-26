@@ -93,6 +93,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     fun clearClusterItem() {
+        clusters.clear()
         clusterItems.clear()
         clusterOverlay.graphics.clear()
     }
