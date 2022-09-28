@@ -14,7 +14,6 @@ import com.esri.arcgisruntime.util.ListChangedEvent
 import com.esri.arcgisruntime.util.ListChangedListener
 import com.example.arcgisandroidcluster.R
 import java.util.*
-import kotlin.collections.ArrayList
 
 
 /**
@@ -22,9 +21,10 @@ import kotlin.collections.ArrayList
  * 点聚合
  * @param clusterSize 聚合范围的大小（指点像素单位距离内的点会聚合到一个点显示）
  */
-class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener, ListChangedListener<Graphic> {
-    private val markerHandlerThread = HandlerThread("addMarker")
-    private val signClusterThread = HandlerThread("calculateCluster")
+class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener,
+    ListChangedListener<Graphic> {
+    private val markerHandlerThread = HandlerThread("addMarker") //添加marker线程
+    private val signClusterThread = HandlerThread("calculateCluster") //计算聚合点线程
     private var markerHandler: Handler
     private var signClusterHandler: Handler
     private var lruCache: LruCache<Int, Symbol> = LruCache(80)
@@ -82,13 +82,21 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
 
     /**
      * 添加一个聚合点
-     *
-     * @param item
      */
     fun addClusterItem(item: ClusterItem<T>) {
         val message = Message.obtain()
         message.what = CALCULATE_SINGLE_CLUSTER
         message.obj = item
+        signClusterHandler.sendMessage(message)
+    }
+
+    /**
+     * 添加大量聚合点
+     */
+    fun addClusterItems(items: List<ClusterItem<T>>) {
+        val message = Message.obtain()
+        message.what = CALCULATE_MULTIPLE_CLUSTER
+        message.obj = items
         signClusterHandler.sendMessage(message)
     }
 
@@ -110,34 +118,38 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     private var yMin = ""
     private var yMax = ""
     override fun navigationChanged(p0: NavigationChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
-        if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
-            xMin = xMinTemp
-            xMax = xMaxTemp
-            yMin = yMinTemp
-            yMax = yMaxTemp
-            PXInMeters = getScale()
-            clusterDistance = PXInMeters * clusterSize
-            assignClusters()
+        if (clusterOverlay.isVisible) {
+            val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+            val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+            val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+            val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+            if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
+                xMin = xMinTemp
+                xMax = xMaxTemp
+                yMin = yMinTemp
+                yMax = yMaxTemp
+                PXInMeters = getScale()
+                clusterDistance = PXInMeters * clusterSize
+                assignClusters()
+            }
         }
     }
 
     override fun viewpointChanged(p0: ViewpointChangedEvent?) {
-        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
-        if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
-            xMin = xMinTemp
-            xMax = xMaxTemp
-            yMin = yMinTemp
-            yMax = yMaxTemp
-            PXInMeters = getScale()
-            clusterDistance = PXInMeters * clusterSize
-            assignClusters()
+        if (clusterOverlay.isVisible) {
+            val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+            val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+            val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+            val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+            if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
+                xMin = xMinTemp
+                xMax = xMaxTemp
+                yMin = yMinTemp
+                yMax = yMaxTemp
+                PXInMeters = getScale()
+                clusterDistance = PXInMeters * clusterSize
+                assignClusters()
+            }
         }
     }
 
@@ -177,7 +189,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     /**
      * 获取每个聚合点的绘制样式
      */
-    private fun getSymbol(clusterItem: MutableList<ClusterItem<T>>): Symbol? {
+    private fun getSymbol(clusterItem: MutableList<ClusterItem<T>>): Symbol {
         val num = clusterItem.size
         var symbol: Symbol? = lruCache.get(num)
         if (symbol == null) {
@@ -231,6 +243,39 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
                 message.obj = cluster
                 markerHandler.sendMessage(message)
             }
+        }
+    }
+
+    /**
+     *      * 在已有的聚合基础上，对添加的多个元素进行聚合
+     */
+    private fun calculateMultipleCluster(clusterItems: List<ClusterItem<T>>) {
+        val visibleBounds: Polygon? = mapView.visibleArea
+        visibleBounds?.let {
+            for (clusterItem in clusterItems) {
+                val latlng: UtilLatLng = clusterItem.latLng
+                if (!contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
+                    continue
+                }
+                var cluster: Cluster<T>? = getCluster(latlng, clusters)
+                if (cluster != null) {
+                    cluster.clusterItems.add(clusterItem)
+                } else {
+                    cluster = Cluster(latlng)
+                    clusters.add(cluster)
+                    cluster.clusterItems.add(clusterItem)
+                }
+            }
+            //复制一份数据，规避同步
+            val clusters: MutableList<Cluster<T>> = ArrayList()
+            clusters.addAll(this.clusters)
+            val message = Message.obtain()
+            message.what = ADD_CLUSTER_LIST
+            message.obj = clusters
+            if (mIsCanceled) {
+                return
+            }
+            markerHandler.sendMessage(message)
         }
     }
 
@@ -297,7 +342,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     /**
      * 处理market添加，更新等操作
      */
-    inner class MarkerHandler(looper: Looper?) : Handler(looper) {
+    inner class MarkerHandler(looper: Looper) : Handler(looper) {
         override fun handleMessage(message: Message) {
             when (message.what) {
                 ADD_CLUSTER_LIST -> {
@@ -319,7 +364,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     /**
      * 处理聚合点算法线程
      */
-    inner class SignClusterHandler(looper: Looper?) : Handler(looper) {
+    inner class SignClusterHandler(looper: Looper) : Handler(looper) {
         override fun handleMessage(message: Message) {
             when (message.what) {
                 CALCULATE_CLUSTER -> calculateClusters()
@@ -327,6 +372,11 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
                     val item = message.obj as ClusterItem<T>
                     clusterItems.add(item)
                     calculateSingleCluster(item)
+                }
+                CALCULATE_MULTIPLE_CLUSTER -> {
+                    val item = message.obj as List<ClusterItem<T>>
+                    clusterItems.addAll(item)
+                    calculateMultipleCluster(item)
                 }
             }
         }
@@ -349,11 +399,12 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     companion object {
-        val ADD_CLUSTER_LIST = 0
-        val ADD_SINGLE_CLUSTER = 1
-        val UPDATE_SINGLE_CLUSTER = 2
+        val ADD_CLUSTER_LIST = 0 //添加标记集合
+        val ADD_SINGLE_CLUSTER = 1 //添加单个标记
+        val UPDATE_SINGLE_CLUSTER = 2 //更新单个现有标记
 
-        val CALCULATE_CLUSTER = 0
-        val CALCULATE_SINGLE_CLUSTER = 1
+        val CALCULATE_CLUSTER = 0 //计算聚合点
+        val CALCULATE_SINGLE_CLUSTER = 1 //添加单个记录
+        val CALCULATE_MULTIPLE_CLUSTER = 2 //添加多个记录
     }
 }

@@ -54,7 +54,11 @@ class MainActivity : AppCompatActivity() {
                     val resource = if (num > 1) {
                         val text = num.toString()
                         val drawable = resources.getDrawable(R.drawable.ic_marker_red, theme)
-                        val b = Bitmap.createBitmap(drawable.intrinsicWidth + circleWidth.toInt(), drawable.intrinsicHeight + circleWidth.toInt(), Bitmap.Config.ARGB_8888)
+                        val b = Bitmap.createBitmap(
+                            drawable.intrinsicWidth + circleWidth.toInt(),
+                            drawable.intrinsicHeight + circleWidth.toInt(),
+                            Bitmap.Config.ARGB_8888
+                        )
                         val canvas = Canvas(b)
                         drawable.setBounds(0, circleWidth.toInt(), canvas.width - circleWidth.toInt(), canvas.height)
                         drawable.draw(canvas)
@@ -154,6 +158,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onBackPressed() {
+        clusterOverlay.clearClusterItem()
+        val lat = 39.902909
+        val lng = 116.413907
+        val items = mutableListOf<ClusterItem<String>>()
+        for (i in 0..1000) {
+            val point = UtilLatLng(lat + Random.nextDouble(0.01), lng + Random.nextDouble(0.01))
+            val d = i.toString()
+            items.add(ClusterItem(point, d))
+        }
+        clusterOverlay.addClusterItems(items.toList())
+    }
+
     override fun onPause() {
         mapView.pause()
         super.onPause()
@@ -189,12 +206,12 @@ class MainActivity : AppCompatActivity() {
                                     names.add(clusterItem.obj)
                                 }
                                 AlertDialog.Builder(this@MainActivity)
-                                        .setTitle("请选择")
-                                        .setItems(names.toTypedArray()) { _, which ->
-                                            Toast.makeText(this@MainActivity, names[which], Toast.LENGTH_SHORT).show()
-                                        }
-                                        .setNegativeButton("关闭", null)
-                                        .show()
+                                    .setTitle("请选择")
+                                    .setItems(names.toTypedArray()) { _, which ->
+                                        Toast.makeText(this@MainActivity, names[which], Toast.LENGTH_SHORT).show()
+                                    }
+                                    .setNegativeButton("关闭", null)
+                                    .show()
                             } else {
                                 val item = obj.clusterItems.first().obj
                                 Toast.makeText(this@MainActivity, item, Toast.LENGTH_SHORT).show()
