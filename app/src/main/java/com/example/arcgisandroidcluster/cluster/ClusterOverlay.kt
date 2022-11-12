@@ -15,14 +15,12 @@ import com.esri.arcgisruntime.util.ListChangedListener
 import com.example.arcgisandroidcluster.R
 import java.util.*
 
-
 /**
  * Created by YB on 2021/9/7
  * 点聚合
  * @param clusterSize 聚合范围的大小（指点像素单位距离内的点会聚合到一个点显示）
  */
-class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener,
-    ListChangedListener<Graphic> {
+class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener, ListChangedListener<Graphic> {
     private val markerHandlerThread = HandlerThread("addMarker") //添加marker线程
     private val signClusterThread = HandlerThread("calculateCluster") //计算聚合点线程
     private var markerHandler: Handler
@@ -70,11 +68,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         builder.addPoint(p1)
         builder.addPoint(centerPoint)
         builder.addPoint(p2)
-        val maxLengthGeodetic = GeometryEngine.lengthGeodetic(
-            builder.toGeometry(),
-            LINEAR_UNIT_METERS,
-            GeodeticCurveType.GEODESIC
-        )
+        val maxLengthGeodetic = GeometryEngine.lengthGeodetic(builder.toGeometry(), LINEAR_UNIT_METERS, GeodeticCurveType.GEODESIC)
 
         val scale = maxLengthGeodetic / maxScaleBarLengthPixels //每个像素所占米数
         return scale
@@ -111,6 +105,9 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
      */
     fun setVisible(visible: Boolean) {
         clusterOverlay.isVisible = visible
+        if (visible) {
+            assignClusters()
+        }
     }
 
     private var xMin = ""
@@ -118,36 +115,36 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     private var yMin = ""
     private var yMax = ""
     override fun navigationChanged(p0: NavigationChangedEvent?) {
-        if (clusterOverlay.isVisible) {
-            val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-            val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-            val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-            val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
-            if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
-                xMin = xMinTemp
-                xMax = xMaxTemp
-                yMin = yMinTemp
-                yMax = yMaxTemp
-                PXInMeters = getScale()
-                clusterDistance = PXInMeters * clusterSize
+        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+        if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
+            xMin = xMinTemp
+            xMax = xMaxTemp
+            yMin = yMinTemp
+            yMax = yMaxTemp
+            PXInMeters = getScale()
+            clusterDistance = PXInMeters * clusterSize
+            if (clusterOverlay.isVisible) {
                 assignClusters()
             }
         }
     }
 
     override fun viewpointChanged(p0: ViewpointChangedEvent?) {
-        if (clusterOverlay.isVisible) {
-            val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
-            val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
-            val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
-            val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
-            if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
-                xMin = xMinTemp
-                xMax = xMaxTemp
-                yMin = yMinTemp
-                yMax = yMaxTemp
-                PXInMeters = getScale()
-                clusterDistance = PXInMeters * clusterSize
+        val xMinTemp = mapView.visibleArea.extent.xMin.latlngFormat()
+        val xMaxTemp = mapView.visibleArea.extent.xMax.latlngFormat()
+        val yMinTemp = mapView.visibleArea.extent.yMin.latlngFormat()
+        val yMaxTemp = mapView.visibleArea.extent.yMax.latlngFormat()
+        if ((xMin != xMinTemp || xMax != xMaxTemp || yMin != yMinTemp || yMax != yMaxTemp) && !mapView.isNavigating) {
+            xMin = xMinTemp
+            xMax = xMaxTemp
+            yMin = yMinTemp
+            yMax = yMaxTemp
+            PXInMeters = getScale()
+            clusterDistance = PXInMeters * clusterSize
+            if (clusterOverlay.isVisible) {
                 assignClusters()
             }
         }
