@@ -20,7 +20,8 @@ import java.util.*
  * 点聚合
  * @param clusterSize 聚合范围的大小（指点像素单位距离内的点会聚合到一个点显示）
  */
-class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener, ListChangedListener<Graphic> {
+class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterSize: Int, val markerMap: MutableMap<String, Any>) : NavigationChangedListener, ViewpointChangedListener,
+    ListChangedListener<Graphic> {
     private val markerHandlerThread = HandlerThread("addMarker") //添加marker线程
     private val signClusterThread = HandlerThread("calculateCluster") //计算聚合点线程
     private var markerHandler: Handler
@@ -107,6 +108,17 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         clusterOverlay.isVisible = visible
         if (visible) {
             assignClusters()
+        }
+    }
+
+    fun visibleArea(): Envelope? {
+        if (SpatialReferences.getWgs84().wkid == mapView.spatialReference.wkid || 4490 == mapView.spatialReference.wkid) {
+            return mapView.visibleArea.extent
+        } else if (SpatialReferences.getWebMercator().wkid == mapView.spatialReference.wkid) {
+            val envelope = mapView.visibleArea.extent
+            return Envelope(UtilLatLng.mercator2latlng(UtilLatLng(envelope.yMin, envelope.xMin)).getPoint(), UtilLatLng.mercator2latlng(UtilLatLng(envelope.yMax, envelope.xMax)).getPoint())
+        } else {
+            return null
         }
     }
 
@@ -217,10 +229,10 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
      * @param clusterItem
      */
     private fun calculateSingleCluster(clusterItem: ClusterItem<T>) {
-        val visibleBounds: Polygon? = mapView.visibleArea
-        visibleBounds?.let {
+        val envelope = visibleArea()
+        envelope?.let {
             val latlng: UtilLatLng = clusterItem.latLng
-            if (!contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
+            if (!contains(envelope, Point(latlng.lng, latlng.lat))) {
                 return
             }
             var cluster: Cluster<T>? = getCluster(latlng, clusters)
@@ -244,14 +256,14 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     }
 
     /**
-     *      * 在已有的聚合基础上，对添加的多个元素进行聚合
+     * 在已有的聚合基础上，对添加的多个元素进行聚合
      */
     private fun calculateMultipleCluster(clusterItems: List<ClusterItem<T>>) {
-        val visibleBounds: Polygon? = mapView.visibleArea
-        visibleBounds?.let {
+        val envelope = visibleArea()
+        envelope?.let {
             for (clusterItem in clusterItems) {
                 val latlng: UtilLatLng = clusterItem.latLng
-                if (!contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
+                if (!contains(envelope, Point(latlng.lng, latlng.lat))) {
                     continue
                 }
                 var cluster: Cluster<T>? = getCluster(latlng, clusters)
@@ -305,21 +317,23 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
     private fun calculateClusters() {
         mIsCanceled = false
         clusters.clear()
-        val visibleBounds = mapView.visibleArea
-        for (clusterItem in clusterItems) {
-            if (mIsCanceled) {
-                return
-            }
-            val latlng: UtilLatLng = clusterItem.latLng
+        val envelope = visibleArea()
+        if (envelope != null) {
+            for (clusterItem in clusterItems) {
+                if (mIsCanceled) {
+                    return
+                }
+                val latlng: UtilLatLng = clusterItem.latLng
 
-            if (contains(visibleBounds, Point(latlng.lng, latlng.lat))) {
-                var cluster: Cluster<T>? = getCluster(latlng, clusters)
-                if (cluster != null) {
-                    cluster.clusterItems.add(clusterItem)
-                } else {
-                    cluster = Cluster(latlng)
-                    clusters.add(cluster)
-                    cluster.clusterItems.add(clusterItem)
+                if (contains(envelope, Point(latlng.lng, latlng.lat))) {
+                    var cluster: Cluster<T>? = getCluster(latlng, clusters)
+                    if (cluster != null) {
+                        cluster.clusterItems.add(clusterItem)
+                    } else {
+                        cluster = Cluster(latlng)
+                        clusters.add(cluster)
+                        cluster.clusterItems.add(clusterItem)
+                    }
                 }
             }
         }
@@ -379,8 +393,7 @@ class ClusterOverlay<T>(val context: Context, val mapView: MapView, val clusterS
         }
     }
 
-    fun contains(polygon: Polygon, point: Point): Boolean {
-        val extent = polygon.extent
+    fun contains(extent: Envelope, point: Point): Boolean {
         return point.x > extent.xMin && point.x < extent.xMax && point.y > extent.yMin && point.y < extent.yMax
     }
 
