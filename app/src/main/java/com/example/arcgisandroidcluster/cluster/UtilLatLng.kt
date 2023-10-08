@@ -1,7 +1,20 @@
 package com.example.arcgisandroidcluster.cluster
 
-data class UtilLatLng(val lat: Double, val lng: Double) {
+import com.esri.arcgisruntime.geometry.Point
+import com.esri.arcgisruntime.geometry.SpatialReferences
+
+data class UtilLatLng(
+    /**纬度-90,90*/
+    var lat: Double,
+    /**经度-180,180*/
+    var lng: Double
+) {
+    fun getPoint() = Point(lng, lat, SpatialReferences.getWgs84())
+
     companion object {
+
+        fun getLatLng(point: Point) = UtilLatLng(point.y, point.x)
+
         /**
          * 两点距离计算
          */
@@ -39,6 +52,26 @@ data class UtilLatLng(val lat: Double, val lng: Double) {
                 var30.printStackTrace()
                 return 0.0f
             }
+        }
+
+        /**
+         * 3857转4326
+         */
+        fun mercator2latlng(latlng: UtilLatLng): UtilLatLng {
+            var lng = latlng.lng / 20037508.34 * 180
+            var lat = latlng.lat / 20037508.34 * 180
+            lat = 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180)) - Math.PI / 2)
+            return UtilLatLng(lat, lng)
+        }
+        /**
+         * 4326转3857
+         */
+        fun latlng2mercator(latlng: UtilLatLng): UtilLatLng {
+            var earthRad = 6378137.0
+            var lng = latlng.lng * Math.PI / 180 * earthRad
+            var a = latlng.lat * Math.PI / 180
+            var lat = earthRad / 2 * Math.log((1.0 + Math.sin(a)) / (1.0 - Math.sin(a)))
+            return UtilLatLng(lat, lng)
         }
     }
 }
